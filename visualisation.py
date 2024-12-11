@@ -24,7 +24,9 @@ import pandas as pd
 
 # Connect to server on the cloud
 client = pymongo.MongoClient(
-    "mongodb+srv://richiegobin:Password123@animatedfilms.rinmj.mongodb.net/AnimatedFilms?retryWrites=true&w=majority&appName=AnimatedFilms")
+    "mongodb+srv://richiegobin:Password123@animatedfilms.rinmj.mongodb.net/?retryWrites=true&w=majority&appName=AnimatedFilms&maxPoolSize=20&minPoolSize=1&heartbeatFrequencyMS=10000"
+)
+
 # test the connection
 #db = client.test
 #print(db)
