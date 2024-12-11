@@ -1,130 +1,58 @@
-# Mongodb Set up guide: https://docs.google.com/document/d/1EdvOK5_1D4ya94-N0RU5t9Rm_e2YurhU/edit?usp=sharing&ouid=118003078876393636228&rtpof=true&sd=true
-import dash                                                     # pip install dash  (2.1 or higher)
+import dash
 from dash import html, dcc, Input, Output, State, dash_table
-import pandas as pd                                             # pip install pandas
+import pandas as pd
 import plotly.express as px
-import pymongo                                                  # pip install "pymongo[srv]"
+import pymongo
 from bson.objectid import ObjectId
 
-
-from flask import Flask, jsonify
-import pandas as pd
-
-#app = Flask(__name__)
-
-#def get_data():
-   # Fetch data from MongoDB
-    #df = pd.DataFrame(list(collection.find()))
-   # df['_id'] = df['_id'].astype(str)  # Convert ObjectId to string
-    #return jsonify(df.to_dict(orient='records'))  # Serve data as JSON
-
-#if __name__ == '__main__':
- #   app.run(debug=True)
-
-
-# Connect to server on the cloud
+# MongoDB connection
 client = pymongo.MongoClient(
     "mongodb+srv://richiegobin:Password123@animatedfilms.rinmj.mongodb.net/?retryWrites=true&w=majority&appName=AnimatedFilms&maxPoolSize=20&minPoolSize=1&heartbeatFrequencyMS=10000"
 )
-
-# test the connection
-#db = client.test
-#print(db)
-#exit()
-
-# Go into the database I created
 db = client["AnimatedFilms"]
-# Go into one of my database's collection (table)
 collection = db["Films"]
 
-# Example of how to create a document (row)
-# record = {
-#     "employee": "Mike",
-#     "department": "engineering",
-#     "product": "PC",
-#     "part": "motherboard",
-#     "quantity": "12",
-#     "day": "Saturday"
-# }
-# # Insert document (row) into the database's collection (table)
-# collection.insert_one(record)
-# testing = collection.find_one()
-# print(testing)
-# exit()
+# Test MongoDB connection
+print("Testing MongoDB connection...")
+print(list(collection.find().limit(1)))  # Should return a sample document
 
-# Define Layout of App
+# Define Dash app
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
-app = dash.Dash(__name__, external_stylesheets=external_stylesheets,
-                suppress_callback_exceptions=True)
+app = dash.Dash(__name__, external_stylesheets=external_stylesheets, suppress_callback_exceptions=True)
+app.title = "Animated Films Dashboard"
 
+# App layout
 app.layout = html.Div([
     html.H1('Animated Films Web Application connected to a Live Database', style={'textAlign': 'center'}),
-    # interval activated once/week or when page refreshed
-    dcc.Interval(id='interval_db', interval=86400000 * 7, n_intervals=0),
+    dcc.Interval(id='interval_db', interval=86400000 * 7, n_intervals=0),  # Weekly refresh
     html.Div(id='mongo-datatable', children=[]),
-
     html.Div([
-        html.Div(id='scatter-graph', className='five columns'),
+        html.Div(id='scatter-graph', className='six columns'),
         html.Div(id='hist-graph', className='six columns'),
     ], className='row'),
     dcc.Store(id='changed-cell')
 ])
 
+# Populate DataTable from MongoDB
+@app.callback(Output('mongo-datatable', 'children'),
+              Input('interval_db', 'n_intervals'))
+def populate_datatable(n_intervals):
+    try:
+        df = pd.DataFrame(list(collection.find()))
+        df['_id'] = df['_id'].astype(str)  # Convert ObjectId to string for display
+        print("Data fetched for DataTable:", df.head())  # Debugging
+        return [
+            dash_table.DataTable(
+                id='our-table',
+                data=df.to_dict('records'),
+                columns=[{'id': col, 'name': col, 'editable': col != '_id'} for col in df.columns],
+            ),
+        ]
+    except Exception as e:
+        print("Error fetching data:", e)
+        return html.Div("Error loading data table")
 
-# Display Datatable with data from Mongo database
-@app.callback(Output('mongo-datatable', component_property='children'),
-              Input('interval_db', component_property='n_intervals')
-              )
-#def populate_datatable(n_intervals):
-    # Convert the Collection (table) date to a pandas DataFrame
-    df = pd.DataFrame(list(collection.find()))
-    # Convert id from ObjectId to string so it can be read by DataTable
-    df['_id'] = df['_id'].astype(str)
-    print(df.head(20))
-
-    return [
-        dash_table.DataTable(
-            id='our-table',
-            data=df.to_dict('records'),
-            columns=[{'id': p, 'name': p, 'editable': False} if p == '_id'
-                     else {'id': p, 'name': p, 'editable': True}
-                     for p in df],
-        ),
-    ]
-
-
-# store the row id and column id of the cell that was updated
-app.clientside_callback(
-    """
-    function (input,oldinput) {
-        if (oldinput != null) {
-            if(JSON.stringify(input) != JSON.stringify(oldinput)) {
-                for (i in Object.keys(input)) {
-                    newArray = Object.values(input[i])
-                    oldArray = Object.values(oldinput[i])
-                    if (JSON.stringify(newArray) != JSON.stringify(oldArray)) {
-                        entNew = Object.entries(input[i])
-                        entOld = Object.entries(oldinput[i])
-                        for (const j in entNew) {
-                            if (entNew[j][1] != entOld[j][1]) {
-                                changeRef = [i, entNew[j][0]] 
-                                break        
-                            }
-                        }
-                    }
-                }
-            }
-            return changeRef
-        }
-    }    
-    """,
-    Output('changed-cell', 'data'),
-    Input('our-table', 'data'),
-    State('our-table', 'data_previous')
-)
-
-
-# Update MongoDB and create the graphs
+# Update MongoDB and generate visualizations
 @app.callback(
     Output("scatter-graph", "children"),
     Output("hist-graph", "children"),
@@ -145,6 +73,7 @@ def update_d(cc, tabledata):
         print("Error creating visualizations:", e)
         return html.Div("Error creating scatter plot"), html.Div("Error creating histogram")
 
+# Expose the server for deployment
 server = app.server
 
 if __name__ == '__main__':
