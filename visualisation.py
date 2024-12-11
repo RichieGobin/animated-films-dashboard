@@ -2,19 +2,32 @@ import dash
 from dash import html, dcc, Input, Output, State, dash_table
 import pandas as pd
 import plotly.express as px
-import pymongo
-from bson.objectid import ObjectId
+from pymongo import MongoClient
+import os
 
-# MongoDB connection
-client = pymongo.MongoClient(
-    "mongodb+srv://richiegobin:Password123@animatedfilms.rinmj.mongodb.net/?retryWrites=true&w=majority&appName=AnimatedFilms&maxPoolSize=20&minPoolSize=1&heartbeatFrequencyMS=10000"
-)
-db = client["AnimatedFilms"]
-collection = db["Films"]
+# MongoDB connection with environment variable
+MONGO_URI = os.getenv("MONGO_URI", "mongodb+srv://richiegobin:Password123@animatedfilms.rinmj.mongodb.net/AnimatedFilms?retryWrites=true&w=majority&appName=AnimatedFilms&maxPoolSize=20&minPoolSize=1&heartbeatFrequencyMS=10000")
+
+def get_connection():
+    for attempt in range(3):  # Retry up to 3 times
+        try:
+            client = MongoClient(MONGO_URI)
+            db = client["AnimatedFilms"]
+            collection = db["Films"]
+            return collection
+        except Exception as e:
+            print(f"Retry {attempt + 1}: {e}")
+    raise Exception("Failed to connect to MongoDB after 3 attempts")
+
+collection = get_connection()  # Initialize connection globally
 
 # Test MongoDB connection
 print("Testing MongoDB connection...")
-print(list(collection.find().limit(1)))  # Should return a sample document
+try:
+    sample = list(collection.find().limit(1))
+    print("Sample Data:", sample)
+except Exception as e:
+    print("Error during initial connection:", e)
 
 # Define Dash app
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
@@ -23,7 +36,7 @@ app.title = "Animated Films Dashboard"
 
 # App layout
 app.layout = html.Div([
-    html.H1('Animated Films Web Application connected to a Live Database', style={'textAlign': 'center'}),
+    html.H1('Animated Films Dashboard connected to a Live Database', style={'textAlign': 'center'}),
     dcc.Interval(id='interval_db', interval=86400000 * 7, n_intervals=0),  # Weekly refresh
     html.Div(id='mongo-datatable', children=[]),
     html.Div([
@@ -32,6 +45,18 @@ app.layout = html.Div([
     ], className='row'),
     dcc.Store(id='changed-cell')
 ])
+
+# Test MongoDB connection route
+@app.server.route('/test-connection')
+def test_connection():
+    try:
+        sample_data = list(collection.find().limit(1))
+        if sample_data:
+            return f"Connected to MongoDB. Sample Data: {sample_data}", 200
+        else:
+            return "Connected to MongoDB, but no data found in the collection.", 200
+    except Exception as e:
+        return f"Error connecting to MongoDB: {e}", 500
 
 # Populate DataTable from MongoDB
 @app.callback(Output('mongo-datatable', 'children'),
@@ -64,13 +89,12 @@ def update_d(cc, tabledata):
         return html.Div("No data available for scatter plot"), html.Div("No data available for histogram")
 
     try:
-        # Build visualizations
         scatter_fig = px.scatter(tabledata, x='Title', y='Worldwide gross', title="Scatter Plot: Title vs Worldwide Gross")
         hist_fig = px.histogram(tabledata, x='Year', y='Worldwide gross', title="Histogram: Year vs Worldwide Gross")
 
         return dcc.Graph(figure=scatter_fig), dcc.Graph(figure=hist_fig)
     except Exception as e:
-        print("Error creating visualizations:", e)
+        print("Error creating visualizations:", e)  # Debugging
         return html.Div("Error creating scatter plot"), html.Div("Error creating histogram")
 
 # Expose the server for deployment
