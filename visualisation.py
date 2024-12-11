@@ -75,7 +75,7 @@ app.layout = html.Div([
 @app.callback(Output('mongo-datatable', component_property='children'),
               Input('interval_db', component_property='n_intervals')
               )
-def populate_datatable(n_intervals):
+#def populate_datatable(n_intervals):
     # Convert the Collection (table) date to a pandas DataFrame
     df = pd.DataFrame(list(collection.find()))
     # Convert id from ObjectId to string so it can be read by DataTable
@@ -132,27 +132,18 @@ app.clientside_callback(
     Input("our-table", "data"),
 )
 def update_d(cc, tabledata):
-    if cc is None:
-        # Build the Plots
-        scatter_fig = px.scatter(tabledata, x='Title', y='Worldwide gross')
-        hist_fig = px.histogram(tabledata, x='Year', y='Worldwide gross')
-    else:
-        print(f'changed cell: {cc}')
-        print(f'Current DataTable: {tabledata}')
-        x = int(cc[0])
+    if not tabledata:
+        return html.Div("No data available for scatter plot"), html.Div("No data available for histogram")
 
-        # update the external MongoDB
-        row_id = tabledata[x]['_id']
-        col_id = cc[1]
-        new_cell_data = tabledata[x][col_id]
-        collection.update_one({'_id': ObjectId(row_id)},
-                              {"$set": {col_id: new_cell_data}})
-        # Operations guide - https://docs.mongodb.com/manual/crud/#update-operations
+    try:
+        # Build visualizations
+        scatter_fig = px.scatter(tabledata, x='Title', y='Worldwide gross', title="Scatter Plot: Title vs Worldwide Gross")
+        hist_fig = px.histogram(tabledata, x='Year', y='Worldwide gross', title="Histogram: Year vs Worldwide Gross")
 
-        scatter_fig = px.scatter(tabledata, x='year', y='Worldwide gross')
-        hist_fig = px.histogram(tabledata, x='Year', y='Worldwide gross')
-
-    return dcc.Graph(figure=scatter_fig), dcc.Graph(figure=hist_fig)
+        return dcc.Graph(figure=scatter_fig), dcc.Graph(figure=hist_fig)
+    except Exception as e:
+        print("Error creating visualizations:", e)
+        return html.Div("Error creating scatter plot"), html.Div("Error creating histogram")
 
 server = app.server
 
