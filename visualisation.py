@@ -90,12 +90,15 @@ def populate_datatable(n_intervals):
     Input("our-table", "data"),
 )
 def update_d(cc, tabledata):
-    if not tabledata:
-        return html.Div("No data available for scatter plot"), html.Div("No data available for histogram")
-
     try:
-        scatter_fig = px.scatter(tabledata, x='Title', y='Worldwide gross', title="Scatter Plot: Title vs Worldwide Gross")
-        hist_fig = px.histogram(tabledata, x='Year', y='Worldwide gross', title="Histogram: Year vs Worldwide Gross")
+        # Debug: Print table data
+        print("Table Data Received:", tabledata)
+        if not tabledata:
+            return html.Div("No data available for scatter plot"), html.Div("No data available for histogram")
+
+        # Create visualizations
+        scatter_fig = px.scatter(tabledata, x='Title', y='Worldwide gross', title="Title vs Worldwide Gross")
+        hist_fig = px.histogram(tabledata, x='Year', y='Worldwide gross', title="Year vs Worldwide Gross")
 
         return dcc.Graph(figure=scatter_fig), dcc.Graph(figure=hist_fig)
     except Exception as e:
