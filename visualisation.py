@@ -63,9 +63,14 @@ def test_connection():
               Input('interval_db', 'n_intervals'))
 def populate_datatable(n_intervals):
     try:
+        # Fetch data from MongoDB
         df = pd.DataFrame(list(collection.find()))
-        df['_id'] = df['_id'].astype(str)  # Convert ObjectId to string for display
-        print("Data fetched for DataTable:", df.head())  # Debugging
+        print("Fetched DataFrame:", df.head())  # Debug: Print data
+        if df.empty:
+            return html.Div("No data available in the collection.")
+        
+        # Convert MongoDB _id to string for DataTable
+        df['_id'] = df['_id'].astype(str)
         return [
             dash_table.DataTable(
                 id='our-table',
@@ -75,7 +80,7 @@ def populate_datatable(n_intervals):
         ]
     except Exception as e:
         print("Error fetching data:", e)
-        return html.Div("Error loading data table")
+        return html.Div("Error loading data table.")
 
 # Update MongoDB and generate visualizations
 @app.callback(
